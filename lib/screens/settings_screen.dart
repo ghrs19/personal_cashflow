@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/backup_service.dart';
 import '../services/export_service.dart';
 import '../state/app_state.dart';
+import '../theme/app_theme.dart';
 import '../utils/format.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -73,6 +74,62 @@ class SettingsScreen extends StatelessWidget {
                 onChanged: (v) {
                   if (v != null) state.setTheme(v);
                 },
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Accent color — same 7-color picker as KasirFree POS.
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.palette_outlined),
+                      const SizedBox(width: 16),
+                      Text(s.t('themeColor'),
+                          style: Theme.of(context).textTheme.titleMedium),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (var i = 0; i < AppTheme.accents.length; i++)
+                        GestureDetector(
+                          onTap: () => state.setAccent(i),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: AppTheme.accents[i].color,
+                              shape: BoxShape.circle,
+                              border: state.accentIndex == i
+                                  ? Border.all(
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      width: 2.5,
+                                    )
+                                  : null,
+                            ),
+                            child: state.accentIndex == i
+                                ? const Icon(Icons.check, color: Colors.white, size: 20)
+                                : null,
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.lang == 'id'
+                        ? AppTheme.accents[state.accentIndex].nameId
+                        : AppTheme.accents[state.accentIndex].nameEn,
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
               ),
             ),
           ),

@@ -33,6 +33,7 @@ class AppState extends ChangeNotifier {
   String currencyCode = 'IDR';
   ThemeMode themeMode = ThemeMode.system;
   bool lockEnabled = false;
+  int accentIndex = 6; // Teal — see AppTheme.accents
   bool reminderEnabled = false;
   int reminderHour = 20;
   int reminderMinute = 0;
@@ -50,6 +51,7 @@ class AppState extends ChangeNotifier {
       _ => ThemeMode.system,
     };
     lockEnabled = (await repo.getSetting('lock')) == '1';
+    accentIndex = int.tryParse(await repo.getSetting('accent') ?? '') ?? 6;
     reminderEnabled = (await repo.getSetting('reminder')) == '1';
     final rt = await repo.getSetting('reminder_time');
     if (rt != null && rt.contains(':')) {
@@ -142,6 +144,13 @@ class AppState extends ChangeNotifier {
   Future<void> setLock(bool v) async {
     lockEnabled = v;
     await repo.setSetting('lock', v ? '1' : '0');
+    notifyListeners();
+  }
+
+  Future<void> setAccent(int index) async {
+    accentIndex = index;
+    await repo.setSetting('accent', '$index');
+    _syncWidget();
     notifyListeners();
   }
 

@@ -7,7 +7,6 @@ import '../utils/calc.dart';
 import '../utils/format.dart';
 import 'book_screen.dart';
 import 'budgets_screen.dart';
-import 'entry_editor_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -25,68 +24,92 @@ class HomeScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          // Total balance — flat typographic block, no card chrome.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 12, 4, 0),
+          // Greeting strip — KasirFree POS welcome-card pattern:
+          // primary left accent border, greeting + date in primary.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(color: scheme.primary.withValues(alpha: 0.5), width: 5),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(_greetingIcon(), color: scheme.primary, size: 24),
+                    const SizedBox(width: 12),
+                    Text(
+                      _greeting(state),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: scheme.primary,
+                          ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  fmtDate(DateTime.now(), lang: state.lang),
+                  style: TextStyle(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Balance card — filled primary gradient, KasirFree summary style.
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [scheme.primary, scheme.primary.withValues(alpha: 0.72)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  s.t('totalBalance').toUpperCase(),
-                  style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.6,
-                  ),
+                  s.t('totalBalance'),
+                  style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.85)),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   fmtMoney(state.total, lang: state.lang, currencyCode: state.currencyCode),
                   style: TextStyle(
-                    color: scheme.onSurface,
-                    fontSize: 38,
-                    fontWeight: FontWeight.w300,
-                    letterSpacing: -1.0,
+                    color: scheme.onPrimary,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 22),
-                const Divider(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Row(
                   children: [
-                    Expanded(
-                      child: _miniStat(
-                        context,
-                        s.t('cashIn'),
-                        fmtMoney(monthIn, lang: state.lang, currencyCode: state.currencyCode),
-                        icon: Icons.arrow_downward,
-                        accent: true,
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 36,
-                      color: Theme.of(context).dividerTheme.color,
+                    _miniStatOnPrimary(
+                      context,
+                      '↓ ${s.t('cashIn')} • ${s.t('thisMonth')}',
+                      fmtMoney(monthIn, lang: state.lang, currencyCode: state.currencyCode),
                     ),
                     const SizedBox(width: 20),
-                    Expanded(
-                      child: _miniStat(
-                        context,
-                        s.t('cashOut'),
-                        fmtMoney(monthOut, lang: state.lang, currencyCode: state.currencyCode),
-                        icon: Icons.arrow_upward,
-                        accent: false,
-                      ),
+                    _miniStatOnPrimary(
+                      context,
+                      '↑ ${s.t('cashOut')} • ${s.t('thisMonth')}',
+                      fmtMoney(monthOut, lang: state.lang, currencyCode: state.currencyCode),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                const Divider(),
               ],
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 24),
           if (state.budgetAlerts.isNotEmpty) ...[
             InkWell(
               onTap: () => Navigator.push(
@@ -137,55 +160,37 @@ class HomeScreen extends StatelessWidget {
             ),
         ],
       ),
-      floatingActionButton: state.accounts.isEmpty
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EntryEditorScreen(accountId: state.accounts.first.id!),
-                ),
-              ),
-              icon: const Icon(Icons.add),
-              label: Text(s.t('addEntry')),
-            ),
     );
   }
 
-  Widget _miniStat(
-    BuildContext context,
-    String label,
-    String value, {
-    required IconData icon,
-    required bool accent,
-  }) {
+  String _greeting(AppState state) {
+    final h = DateTime.now().hour;
+    if (h < 12) return state.s.t('greetMorning');
+    if (h < 15) return state.s.t('greetNoon');
+    if (h < 19) return state.s.t('greetEvening');
+    return state.s.t('greetNight');
+  }
+
+  IconData _greetingIcon() {
+    final h = DateTime.now().hour;
+    if (h < 12) return Icons.wb_sunny_outlined;
+    if (h < 15) return Icons.brightness_7_outlined;
+    if (h < 19) return Icons.brightness_5_outlined;
+    return Icons.dark_mode_outlined;
+  }
+
+  Widget _miniStatOnPrimary(BuildContext context, String label, String value) {
     final scheme = Theme.of(context).colorScheme;
-    final s = context.read<AppState>().s;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Icon(
-              icon,
-              size: 13,
-              color: accent ? scheme.primary : scheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: 5),
-            Text(
-              '$label • ${s.t('thisMonth')}',
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11.5),
-            ),
-          ],
+        Text(
+          label,
+          style: TextStyle(color: scheme.onPrimary.withValues(alpha: 0.8), fontSize: 11),
         ),
-        const SizedBox(height: 5),
         Text(
           value,
-          style: TextStyle(
-            color: scheme.onSurface,
-            fontWeight: FontWeight.w600,
-            fontSize: 15.5,
-          ),
+          style: TextStyle(color: scheme.onPrimary, fontWeight: FontWeight.w700, fontSize: 14),
         ),
       ],
     );
@@ -194,27 +199,17 @@ class HomeScreen extends StatelessWidget {
   Widget _accountCard(BuildContext context, AppState state, Account a) {
     final balance = state.balances[a.id] ?? 0;
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerTheme.color!),
-        ),
-      ),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Theme.of(context).dividerTheme.color!),
-          ),
-          alignment: Alignment.center,
-          child: Text(a.icon, style: const TextStyle(fontSize: 19)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: Color(a.colorValue).withValues(alpha: 0.15),
+          child: Text(a.icon, style: const TextStyle(fontSize: 20)),
         ),
         title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15.5)),
         subtitle: Text(
-          fmtMoney(balance, lang: state.lang, currencyCode: state.currencyCode),
+          '${state.s.t('balance')}: ${fmtMoney(balance, lang: state.lang, currencyCode: state.currencyCode)}',
           style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
         ),
         trailing: PopupMenuButton<String>(

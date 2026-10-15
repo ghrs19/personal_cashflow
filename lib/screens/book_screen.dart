@@ -72,6 +72,16 @@ class _BookScreenState extends State<BookScreen> {
         title: Text('${widget.account.icon} ${widget.account.name}'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: s.t('addEntry'),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => EntryEditorScreen(accountId: widget.account.id!),
+              ),
+            ).then((_) => _load()),
+          ),
+          IconButton(
             icon: const Icon(Icons.swap_horiz),
             tooltip: s.t('transfer'),
             onPressed: () => Navigator.push(
@@ -93,16 +103,33 @@ class _BookScreenState extends State<BookScreen> {
             margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.72),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(s.t('balance'), style: const TextStyle(fontSize: 12)),
+                Text(
+                  s.t('balance'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.85),
+                  ),
+                ),
                 Text(
                   fmtMoney(balance, lang: state.lang, currencyCode: state.currencyCode),
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 ),
               ],
             ),
@@ -195,16 +222,6 @@ class _BookScreenState extends State<BookScreen> {
                       ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => EntryEditorScreen(accountId: widget.account.id!),
-          ),
-        ).then((_) => _load()),
-        icon: const Icon(Icons.add),
-        label: Text(s.t('addEntry')),
       ),
     );
   }

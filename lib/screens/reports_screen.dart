@@ -154,11 +154,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _totalStat(context, s.t('cashIn'), totalIn, accent: true),
-                    _vRule(context),
-                    _totalStat(context, s.t('cashOut'), totalOut),
-                    _vRule(context),
-                    _totalStat(context, s.t('net'), totalIn - totalOut),
+                    _totalCard(context, s.t('cashIn'), totalIn,
+                        icon: Icons.trending_up_outlined,
+                        iconColor: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 10),
+                    _totalCard(context, s.t('cashOut'), totalOut,
+                        icon: Icons.trending_down_outlined,
+                        iconColor: Theme.of(context).colorScheme.error),
+                    const SizedBox(width: 10),
+                    _totalCard(context, s.t('net'), totalIn - totalOut,
+                        icon: Icons.account_balance_wallet_outlined,
+                        iconColor: Theme.of(context).colorScheme.secondary),
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -217,39 +223,43 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _vRule(BuildContext context) => Container(
-        width: 1,
-        height: 38,
-        margin: const EdgeInsets.symmetric(horizontal: 14),
-        color: Theme.of(context).dividerTheme.color,
-      );
-
-  Widget _totalStat(BuildContext context, String label, double v, {bool accent = false}) {
+  /// KasirFree-style info card: small colored icon, label, bold value.
+  Widget _totalCard(
+    BuildContext context,
+    String label,
+    double v, {
+    required IconData icon,
+    required Color iconColor,
+  }) {
     final state = context.read<AppState>();
     final scheme = Theme.of(context).colorScheme;
     return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 10.5,
-              letterSpacing: 1.1,
-              fontWeight: FontWeight.w600,
-              color: accent ? scheme.primary : scheme.onSurfaceVariant,
-            ),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  fmtMoney(v, lang: state.lang, currencyCode: state.currencyCode),
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 5),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              fmtMoney(v, lang: state.lang, currencyCode: state.currencyCode),
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15.5),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

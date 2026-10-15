@@ -23,19 +23,21 @@ class EntryTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-      leading: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(color: Theme.of(context).dividerTheme.color!),
-        ),
+      leading: CircleAvatar(
+        radius: 20,
+        backgroundColor: e.isTransfer
+            ? scheme.surfaceContainerHighest
+            : (income
+                ? scheme.primary.withValues(alpha: 0.14)
+                : scheme.error.withValues(alpha: 0.12)),
         child: Icon(
           e.isTransfer
               ? Icons.swap_horiz
               : (income ? Icons.arrow_downward : Icons.arrow_upward),
-          color: income ? scheme.primary : scheme.onSurfaceVariant,
-          size: 17,
+          color: e.isTransfer
+              ? scheme.onSurfaceVariant
+              : (income ? scheme.primary : scheme.error),
+          size: 18,
         ),
       ),
       title: Text(
@@ -60,7 +62,9 @@ class EntryTile extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 14.5,
-              color: income ? scheme.primary : scheme.onSurface,
+              color: e.isTransfer
+                  ? scheme.onSurface
+                  : (income ? scheme.primary : scheme.error),
             ),
           ),
           Text(

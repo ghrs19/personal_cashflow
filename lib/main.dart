@@ -41,8 +41,8 @@ class _PersonalCashflowAppState extends State<PersonalCashflowApp> {
     return MaterialApp(
       title: 'Personal Cashflow',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      darkTheme: AppTheme.dark(),
+      theme: AppTheme.light(state.accentIndex),
+      darkTheme: AppTheme.dark(state.accentIndex),
       themeMode: state.themeMode,
       home: _home(state),
     );
