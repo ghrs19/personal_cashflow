@@ -30,7 +30,7 @@ class FlowBarChart extends StatelessWidget {
           children: [
             _legend(scheme.primary, inLabel),
             const SizedBox(width: 16),
-            _legend(scheme.error, outLabel),
+            _legend(scheme.onSurface.withValues(alpha: 0.30), outLabel),
           ],
         ),
         const SizedBox(height: 12),
@@ -51,7 +51,7 @@ class FlowBarChart extends StatelessWidget {
                         children: [
                           _bar(d.cashIn / maxV, scheme.primary),
                           const SizedBox(width: 3),
-                          _bar(d.cashOut / maxV, scheme.error),
+                          _bar(d.cashOut / maxV, scheme.onSurface.withValues(alpha: 0.30)),
                         ],
                       ),
                       const SizedBox(height: 6),

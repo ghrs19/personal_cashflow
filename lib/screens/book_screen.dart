@@ -158,7 +158,12 @@ class _BookScreenState extends State<BookScreen> {
                                   children: [
                                     Text(
                                       fmtDateShort(dayItems.first.entry.date, lang: state.lang),
-                                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                        letterSpacing: 0.6,
+                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                      ),
                                     ),
                                     const Spacer(),
                                     Text(
@@ -171,17 +176,18 @@ class _BookScreenState extends State<BookScreen> {
                                   ],
                                 ),
                               ),
-                              Card(
-                                margin: const EdgeInsets.symmetric(horizontal: 16),
-                                child: Column(
-                                  children: dayItems
-                                      .map((it) => EntryTile(
-                                            item: it,
-                                            state: state,
-                                            onTap: () => _openActions(it.entry),
-                                          ))
-                                      .toList(),
-                                ),
+                              Column(
+                                children: [
+                                  for (var i = 0; i < dayItems.length; i++) ...[
+                                    EntryTile(
+                                      item: dayItems[i],
+                                      state: state,
+                                      onTap: () => _openActions(dayItems[i].entry),
+                                    ),
+                                    if (i < dayItems.length - 1)
+                                      const Divider(indent: 70, endIndent: 16),
+                                  ],
+                                ],
                               ),
                             ],
                           );

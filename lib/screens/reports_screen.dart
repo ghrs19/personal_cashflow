@@ -132,12 +132,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _totalCard(context, s.t('cashIn'), totalIn, Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 10),
-                    _totalCard(context, s.t('cashOut'), totalOut, Theme.of(context).colorScheme.error),
-                    const SizedBox(width: 10),
-                    _totalCard(context, s.t('net'), totalIn - totalOut, Theme.of(context).colorScheme.tertiary),
+                    _totalStat(context, s.t('cashIn'), totalIn, accent: true),
+                    _vRule(context),
+                    _totalStat(context, s.t('cashOut'), totalOut),
+                    _vRule(context),
+                    _totalStat(context, s.t('net'), totalIn - totalOut),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -171,28 +172,39 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  Widget _totalCard(BuildContext context, String label, double v, Color color) {
+  Widget _vRule(BuildContext context) => Container(
+        width: 1,
+        height: 38,
+        margin: const EdgeInsets.symmetric(horizontal: 14),
+        color: Theme.of(context).dividerTheme.color,
+      );
+
+  Widget _totalStat(BuildContext context, String label, double v, {bool accent = false}) {
     final state = context.read<AppState>();
+    final scheme = Theme.of(context).colorScheme;
     return Expanded(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 4),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  fmtMoney(v, lang: state.lang, currencyCode: state.currencyCode),
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                ),
-              ),
-            ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10.5,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w600,
+              color: accent ? scheme.primary : scheme.onSurfaceVariant,
+            ),
           ),
-        ),
+          const SizedBox(height: 5),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              fmtMoney(v, lang: state.lang, currencyCode: state.currencyCode),
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15.5),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -201,7 +213,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
           text,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.1,
+              ),
         ),
       );
 
