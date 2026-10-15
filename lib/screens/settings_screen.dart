@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../services/backup_service.dart';
+import '../services/export_service.dart';
 import '../state/app_state.dart';
 import '../utils/format.dart';
 
@@ -86,6 +87,46 @@ class SettingsScreen extends StatelessWidget {
               onChanged: (v) => state.setLock(v),
             ),
           ),
+          const SizedBox(height: 10),
+          // Daily reminder
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_outlined),
+                  title: Text(s.t('dailyReminder')),
+                  subtitle: Text(s.t('dailyReminderDesc')),
+                  value: state.reminderEnabled,
+                  onChanged: (v) => state.setReminder(v),
+                ),
+                if (state.reminderEnabled)
+                  ListTile(
+                    leading: const SizedBox(width: 24),
+                    title: Text(s.t('reminderTime')),
+                    trailing: Text(
+                      '${state.reminderHour.toString().padLeft(2, '0')}:${state.reminderMinute.toString().padLeft(2, '0')}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    onTap: () async {
+                      final picked = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay(
+                          hour: state.reminderHour,
+                          minute: state.reminderMinute,
+                        ),
+                      );
+                      if (picked != null) {
+                        await state.setReminder(
+                          true,
+                          hour: picked.hour,
+                          minute: picked.minute,
+                        );
+                      }
+                    },
+                  ),
+              ],
+            ),
+          ),
           const SizedBox(height: 20),
           Text(
             s.t('backup'),
@@ -113,6 +154,26 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () => _restore(context),
             icon: const Icon(Icons.restore),
             label: Text(s.t('backupRestore')),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _exportTabular(context, excel: false),
+                  icon: const Icon(Icons.table_rows_outlined),
+                  label: Text(s.t('exportCsv')),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _exportTabular(context, excel: true),
+                  icon: const Icon(Icons.grid_on_outlined),
+                  label: Text(s.t('exportExcel')),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -162,6 +223,23 @@ class SettingsScreen extends StatelessWidget {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(state.s.t('backupDone'))));
       }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(state.s.t('operationFailed'))));
+      }
+    }
+  }
+
+  Future<void> _exportTabular(BuildContext context, {required bool excel}) async {
+    final state = context.read<AppState>();
+    try {
+      final entries = await state.repo.getAllEntries();
+      final names = {for (final a in state.accounts) a.id!: a.name};
+      final file = excel
+          ? await ExportService.exportExcel(entries, names)
+          : await ExportService.exportCsv(entries, names);
+      await Share.shareXFiles([XFile(file.path)]);
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context)

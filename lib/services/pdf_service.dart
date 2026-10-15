@@ -35,7 +35,7 @@ class PdfService {
         build: (context) => [
           pw.Text(
             title,
-            style: const pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
           ),
           pw.Text(periodLabel, style: const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
           pw.SizedBox(height: 16),
@@ -50,7 +50,7 @@ class PdfService {
           ),
           pw.SizedBox(height: 20),
           pw.TableHelper.fromTextArray(
-            headerStyle: const pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
             cellStyle: const pw.TextStyle(fontSize: 9),
             headers: [
               'Date',

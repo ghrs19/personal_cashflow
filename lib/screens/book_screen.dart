@@ -243,6 +243,49 @@ class _BookScreenState extends State<BookScreen> {
                 ).then((_) => _load());
               },
             ),
+            if (!entry.isTransfer) ...[
+              ListTile(
+                leading: const Icon(Icons.content_copy_outlined),
+                title: Text(s.t('duplicate')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EntryEditorScreen(
+                        accountId: widget.account.id!,
+                        prefill: entry,
+                      ),
+                    ),
+                  ).then((_) => _load());
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.bookmark_outline),
+                title: Text(s.t('saveAsTemplate')),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final name = entry.notes.isNotEmpty
+                      ? entry.notes
+                      : entry.category;
+                  await state.saveTemplate(
+                    EntryTemplate(
+                      name: name.isEmpty ? s.t('templates') : name,
+                      accountId: entry.accountId,
+                      isIncome: entry.isIncome,
+                      amount: entry.amount,
+                      category: entry.category,
+                      notes: entry.notes,
+                    ),
+                  );
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(s.t('saved'))),
+                    );
+                  }
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.delete_outline),
               title: Text(s.t('delete')),

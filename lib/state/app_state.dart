@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import '../data/repository.dart';
 import '../l10n/strings.dart';
 import '../models/models.dart';
+import '../services/notification_service.dart';
+import '../services/widget_service.dart';
+import '../utils/calc.dart';
+import '../utils/format.dart';
 
 /// Single app-wide state holder (ChangeNotifier via provider).
 class AppState extends ChangeNotifier {
@@ -15,11 +19,23 @@ class AppState extends ChangeNotifier {
   double total = 0;
   List<CashEntry> monthEntries = [];
 
+  // v1.2 collections
+  List<RecurringRule> recurringRules = [];
+  List<Budget> budgets = [];
+  Map<String, double> budgetSpent = {};
+  List<SavingsGoal> goals = [];
+  List<Debt> debts = [];
+  Map<int, double> debtPaid = {};
+  List<EntryTemplate> templates = [];
+
   // settings
   String lang = 'id';
   String currencyCode = 'IDR';
   ThemeMode themeMode = ThemeMode.system;
   bool lockEnabled = false;
+  bool reminderEnabled = false;
+  int reminderHour = 20;
+  int reminderMinute = 0;
 
   S get s => S(lang);
   bool get isId => lang == 'id';
@@ -34,10 +50,21 @@ class AppState extends ChangeNotifier {
       _ => ThemeMode.system,
     };
     lockEnabled = (await repo.getSetting('lock')) == '1';
+    reminderEnabled = (await repo.getSetting('reminder')) == '1';
+    final rt = await repo.getSetting('reminder_time');
+    if (rt != null && rt.contains(':')) {
+      reminderHour = int.tryParse(rt.split(':')[0]) ?? 20;
+      reminderMinute = int.tryParse(rt.split(':')[1]) ?? 0;
+    }
     await reload();
+    if (reminderEnabled) await _applyDailyReminder();
   }
 
   Future<void> reload() async {
+    // Generate any due recurring entries first so balances include them.
+    try {
+      await repo.processRecurringRules();
+    } catch (_) {}
     accounts = await repo.getAccounts();
     final all = await repo.getAccounts(includeDeleted: true);
     archivedAccounts = all.where((a) => a.isDeleted).toList();
@@ -51,8 +78,39 @@ class AppState extends ChangeNotifier {
       from: DateTime(now.year, now.month, 1),
       to: DateTime(now.year, now.month + 1, 1),
     );
+    recurringRules = await repo.getRecurringRules();
+    budgets = await repo.getBudgets();
+    budgetSpent = await repo.expenseByCategory(
+      DateTime(now.year, now.month, 1),
+      DateTime(now.year, now.month + 1, 1),
+    );
+    goals = await repo.getGoals();
+    debts = await repo.getDebts();
+    debtPaid = await repo.debtPaidTotals();
+    templates = await repo.getTemplates();
     loading = false;
     notifyListeners();
+    _syncWidget();
+  }
+
+  void _syncWidget() {
+    final plainIn = monthEntries.where((e) => !e.isTransfer);
+    WidgetService.sync(
+      balance: fmtMoney(total, lang: lang, currencyCode: currencyCode),
+      monthIn: fmtMoney(sumIncome(plainIn), lang: lang, currencyCode: currencyCode),
+      monthOut: fmtMoney(sumExpense(plainIn), lang: lang, currencyCode: currencyCode),
+    );
+  }
+
+  /// Budgets at or above 80% of their limit this month (for Home alerts).
+  List<Budget> get budgetAlerts => budgets
+      .where((b) => budgetFraction(budgetSpent[b.category] ?? 0, b.limitAmount) >= 0.8)
+      .toList();
+
+  double debtRemainingOf(Debt d) {
+    final paid = debtPaid[d.id] ?? 0;
+    final remaining = d.amount - paid;
+    return remaining < 0 ? 0 : remaining;
   }
 
   // ---- settings ----
@@ -145,6 +203,151 @@ class AppState extends ChangeNotifier {
       outLabel: s.t('transfer'),
       inLabel: s.t('transfer'),
     );
+    await reload();
+  }
+
+  // ---- reminders ----
+  Future<void> _applyDailyReminder() async {
+    try {
+      await NotificationService.scheduleDaily(
+        hour: reminderHour,
+        minute: reminderMinute,
+        title: s.t('appName'),
+        body: s.t('reminderBody'),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> setReminder(bool enabled, {int? hour, int? minute}) async {
+    reminderEnabled = enabled;
+    if (hour != null) reminderHour = hour;
+    if (minute != null) reminderMinute = minute;
+    await repo.setSetting('reminder', enabled ? '1' : '0');
+    await repo.setSetting('reminder_time', '$reminderHour:$reminderMinute');
+    try {
+      if (enabled) {
+        await NotificationService.requestPermission();
+        await _applyDailyReminder();
+      } else {
+        await NotificationService.cancelDaily();
+      }
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  // ---- recurring ----
+  Future<void> saveRecurringRule(RecurringRule r) async {
+    if (r.id == null) {
+      await repo.insertRecurringRule(r);
+    } else {
+      await repo.updateRecurringRule(r);
+    }
+    await reload();
+  }
+
+  Future<void> deleteRecurringRule(RecurringRule r) async {
+    await repo.deleteRecurringRule(r.id!);
+    await reload();
+  }
+
+  Future<void> toggleRecurringRule(RecurringRule r) async {
+    await repo.updateRecurringRule(r.copyWith(active: !r.active));
+    await reload();
+  }
+
+  // ---- budgets ----
+  Future<void> saveBudget(Budget b) async {
+    await repo.upsertBudget(b);
+    await reload();
+  }
+
+  Future<void> removeBudget(Budget b) async {
+    await repo.deleteBudget(b.id!);
+    await reload();
+  }
+
+  // ---- goals ----
+  Future<void> saveGoal(SavingsGoal g) async {
+    if (g.id == null) {
+      await repo.insertGoal(g);
+    } else {
+      await repo.updateGoal(g);
+    }
+    await reload();
+  }
+
+  Future<void> removeGoal(SavingsGoal g) async {
+    await repo.deleteGoal(g.id!);
+    await reload();
+  }
+
+  Future<void> adjustGoal(SavingsGoal g, double delta) async {
+    final next = g.currentAmount + delta;
+    await repo.updateGoal(g.copyWith(currentAmount: next < 0 ? 0 : next));
+    await reload();
+  }
+
+  // ---- debts ----
+  Future<void> saveDebt(Debt d) async {
+    int id;
+    if (d.id == null) {
+      id = await repo.insertDebt(d);
+    } else {
+      id = d.id!;
+      await repo.updateDebt(d);
+    }
+    try {
+      if (!d.settled && d.dueDate != null) {
+        await NotificationService.scheduleDebtReminder(
+          debtId: id,
+          dueDate: d.dueDate!,
+          title: s.t('appName'),
+          body:
+              '${s.t('debtDueSoon')}: ${d.person} — ${fmtMoney(d.amount, lang: lang, currencyCode: currencyCode)}',
+        );
+      } else {
+        await NotificationService.cancelDebtReminder(id);
+      }
+    } catch (_) {}
+    await reload();
+  }
+
+  Future<void> removeDebt(Debt d) async {
+    try {
+      await NotificationService.cancelDebtReminder(d.id!);
+    } catch (_) {}
+    await repo.deleteDebt(d.id!);
+    await reload();
+  }
+
+  Future<void> addDebtPayment(DebtPayment p) async {
+    await repo.insertDebtPayment(p);
+    await reload();
+  }
+
+  Future<void> removeDebtPayment(DebtPayment p) async {
+    await repo.deleteDebtPayment(p.id!);
+    await reload();
+  }
+
+  Future<void> setDebtSettled(Debt d, bool settled) async {
+    await repo.updateDebt(d.copyWith(settled: settled));
+    try {
+      if (settled) {
+        await NotificationService.cancelDebtReminder(d.id!);
+      }
+    } catch (_) {}
+    await reload();
+  }
+
+  // ---- templates ----
+  Future<void> saveTemplate(EntryTemplate t) async {
+    await repo.insertTemplate(t);
+    await reload();
+  }
+
+  Future<void> removeTemplate(EntryTemplate t) async {
+    await repo.deleteTemplate(t.id!);
     await reload();
   }
 

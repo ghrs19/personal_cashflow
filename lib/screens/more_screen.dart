@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import 'budgets_screen.dart';
+import 'debts_screen.dart';
 import 'denominations_screen.dart';
+import 'goals_screen.dart';
+import 'recurring_screen.dart';
 import 'recycle_bin_screen.dart';
 import 'settings_screen.dart';
 
@@ -18,6 +22,42 @@ class MoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
+          _tile(
+            context,
+            icon: Icons.repeat,
+            title: s.t('recurring'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RecurringScreen()),
+            ),
+          ),
+          _tile(
+            context,
+            icon: Icons.account_balance_wallet_outlined,
+            title: s.t('budgets'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const BudgetsScreen()),
+            ),
+          ),
+          _tile(
+            context,
+            icon: Icons.flag_outlined,
+            title: s.t('goals'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GoalsScreen()),
+            ),
+          ),
+          _tile(
+            context,
+            icon: Icons.handshake_outlined,
+            title: s.t('debts'),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DebtsScreen()),
+            ),
+          ),
           _tile(
             context,
             icon: Icons.calculate_outlined,

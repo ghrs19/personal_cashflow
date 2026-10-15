@@ -52,6 +52,82 @@ Map<DateTime, ({double cashIn, double cashOut})> totalsByDay(Iterable<CashEntry>
 double denominationTotal(Iterable<Denomination> denoms) =>
     denoms.fold(0.0, (sum, d) => sum + d.subtotal);
 
+/// Advances [from] by one recurrence step. Monthly/yearly steps keep the
+/// original day-of-month, clamped to the target month's length
+/// (e.g. Jan 31 → Feb 28 → Mar 31 when anchored on [anchorDay]).
+DateTime advanceDate(DateTime from, String frequency, {int? anchorDay}) {
+  final day = DateTime(from.year, from.month, from.day);
+  switch (frequency) {
+    case 'weekly':
+      return day.add(const Duration(days: 7));
+    case 'yearly':
+      final targetDay = anchorDay ?? day.day;
+      final lastDay = DateTime(day.year + 1, day.month + 1, 0).day;
+      return DateTime(day.year + 1, day.month, targetDay.clamp(1, lastDay));
+    case 'monthly':
+    default:
+      final targetDay = anchorDay ?? day.day;
+      final lastDay = DateTime(day.year, day.month + 2, 0).day;
+      return DateTime(day.year, day.month + 1, targetDay.clamp(1, lastDay));
+  }
+}
+
+/// All occurrence dates of a rule that are due on or before [today],
+/// starting at [nextRun]. Capped to avoid runaway catch-up loops.
+List<DateTime> dueOccurrences(
+  DateTime nextRun,
+  String frequency, {
+  required DateTime startDate,
+  required DateTime today,
+  int cap = 24,
+}) {
+  final result = <DateTime>[];
+  var cursor = DateTime(nextRun.year, nextRun.month, nextRun.day);
+  final limit = DateTime(today.year, today.month, today.day);
+  while (!cursor.isAfter(limit) && result.length < cap) {
+    result.add(cursor);
+    cursor = advanceDate(cursor, frequency, anchorDay: startDate.day);
+  }
+  return result;
+}
+
+double debtRemaining(Debt debt, Iterable<DebtPayment> payments) {
+  final paid = payments.fold(0.0, (sum, p) => sum + p.amount);
+  final remaining = debt.amount - paid;
+  return remaining < 0 ? 0 : remaining;
+}
+
+/// Spent fraction of a budget limit (0..1+, can exceed 1).
+double budgetFraction(double spent, double limit) =>
+    limit <= 0 ? 0 : spent / limit;
+
+/// Cumulative net series for the balance trend chart: one point per day
+/// in [days], each the running sum of that day's net flow up to it.
+List<double> cumulativeSeries(Map<DateTime, ({double cashIn, double cashOut})> byDay,
+    List<DateTime> days) {
+  var running = 0.0;
+  return days.map((d) {
+    final t = byDay[DateTime(d.year, d.month, d.day)];
+    if (t != null) running += t.cashIn - t.cashOut;
+    return running;
+  }).toList();
+}
+
+/// Simple month-end balance projection: current balance plus the
+/// average daily net of the elapsed days applied to the remaining days,
+/// plus the net of recurring rules still scheduled this month.
+double projectMonthEnd({
+  required double currentBalance,
+  required double monthNetSoFar,
+  required int elapsedDays,
+  required int remainingDays,
+  double scheduledNetRemaining = 0,
+}) {
+  if (elapsedDays <= 0) return currentBalance + scheduledNetRemaining;
+  final avgDaily = monthNetSoFar / elapsedDays;
+  return currentBalance + avgDaily * remainingDays + scheduledNetRemaining;
+}
+
 /// Parses user money input. Accepts thousand separators ('.', ',',
 /// spaces) and one decimal separator; returns null when unparseable.
 double? parseAmount(String raw, {required bool idLocale}) {

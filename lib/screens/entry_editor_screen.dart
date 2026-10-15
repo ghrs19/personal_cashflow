@@ -16,12 +16,17 @@ enum _Mode { income, expense, transfer }
 class EntryEditorScreen extends StatefulWidget {
   final int accountId;
   final CashEntry? existing;
+
+  /// Values copied from another entry (duplicate / template apply at the
+  /// call site). The saved entry is always a brand-new one.
+  final CashEntry? prefill;
   final bool startAsTransfer;
 
   const EntryEditorScreen({
     super.key,
     required this.accountId,
     this.existing,
+    this.prefill,
     this.startAsTransfer = false,
   });
 
@@ -60,6 +65,16 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
       _bills = [...ex.bills];
       if (ex.transactionType == 1) _fromId = ex.accountId;
       if (ex.transactionType == 2) _toId = ex.accountId;
+    } else if (widget.prefill != null) {
+      final pf = widget.prefill!;
+      _mode = pf.isIncome ? _Mode.income : _Mode.expense;
+      _amountCtrl.text = groupNumber(
+        pf.amount,
+        idLocale: context.read<AppState>().isId,
+      );
+      _notesCtrl.text = pf.notes;
+      _descCtrl.text = pf.description;
+      _category = pf.category.isEmpty ? null : pf.category;
     } else if (widget.startAsTransfer) {
       _mode = _Mode.transfer;
     }
@@ -87,7 +102,23 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
     final editing = widget.existing != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text(editing ? s.t('editEntry') : s.t('addEntry'))),
+      appBar: AppBar(
+        title: Text(editing ? s.t('editEntry') : s.t('addEntry')),
+        actions: [
+          if (!editing)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.bookmark_outline),
+              onSelected: (v) {
+                if (v == 'apply') _applyTemplateSheet();
+                if (v == 'save') _saveAsTemplate();
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'apply', child: Text(s.t('applyTemplate'))),
+                PopupMenuItem(value: 'save', child: Text(s.t('saveAsTemplate'))),
+              ],
+            ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
@@ -396,5 +427,107 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
   void _snack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     setState(() => _saving = false);
+  }
+
+  Future<void> _applyTemplateSheet() async {
+    final state = context.read<AppState>();
+    final s = state.s;
+    final templates = state.templates;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                s.t('templates'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            if (templates.isEmpty)
+              ListTile(title: Text(s.t('noTemplates'))),
+            ...templates.map(
+              (t) => ListTile(
+                leading: Icon(
+                  t.isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+                  size: 19,
+                ),
+                title: Text(t.name),
+                subtitle: Text(
+                  '${t.category} • ${fmtMoney(t.amount, lang: state.lang, currencyCode: state.currencyCode)}',
+                ),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 19),
+                  onPressed: () async {
+                    await state.removeTemplate(t);
+                    if (ctx.mounted) Navigator.pop(ctx);
+                  },
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    _mode = t.isIncome ? _Mode.income : _Mode.expense;
+                    _amountCtrl.text =
+                        groupNumber(t.amount, idLocale: state.isId);
+                    _notesCtrl.text = t.notes;
+                    _category = t.category.isEmpty ? null : t.category;
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _saveAsTemplate() async {
+    final state = context.read<AppState>();
+    final s = state.s;
+    if (_mode == _Mode.transfer) {
+      _snack(s.t('operationFailed'));
+      return;
+    }
+    final amount = parseAmount(_amountCtrl.text, idLocale: state.isId);
+    if (amount == null || amount <= 0) {
+      _snack(s.t('amountRequired'));
+      return;
+    }
+    final ctrl = TextEditingController(
+      text: _notesCtrl.text.trim().isNotEmpty
+          ? _notesCtrl.text.trim()
+          : (_category ?? ''),
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(s.t('saveAsTemplate')),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: InputDecoration(labelText: s.t('templateName')),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(s.t('cancel'))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: Text(s.t('save')),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    await state.saveTemplate(
+      EntryTemplate(
+        name: name,
+        accountId: widget.accountId,
+        isIncome: _mode == _Mode.income,
+        amount: amount,
+        category: _category ?? '',
+        notes: _notesCtrl.text.trim(),
+      ),
+    );
+    if (mounted) _snack(s.t('saved'));
   }
 }

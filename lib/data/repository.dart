@@ -286,6 +286,191 @@ class Repository {
     await db.update('currency_notes', {'count': 0}, where: 'currency = ?', whereArgs: [currency]);
   }
 
+  // ---------- Recurring rules ----------
+  Future<List<RecurringRule>> getRecurringRules() async {
+    final db = await _db;
+    final rows = await db.query('recurring_rules', orderBy: 'next_run ASC');
+    return rows.map(RecurringRule.fromMap).toList();
+  }
+
+  Future<int> insertRecurringRule(RecurringRule r) async {
+    final db = await _db;
+    return db.insert('recurring_rules', r.toMap()..remove('id'));
+  }
+
+  Future<void> updateRecurringRule(RecurringRule r) async {
+    final db = await _db;
+    await db.update('recurring_rules', r.toMap(), where: 'id = ?', whereArgs: [r.id]);
+  }
+
+  Future<void> deleteRecurringRule(int id) async {
+    final db = await _db;
+    await db.delete('recurring_rules', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Generates entries for every occurrence due today or earlier and
+  /// advances each rule. Returns how many entries were created.
+  Future<int> processRecurringRules() async {
+    final db = await _db;
+    final today = DateTime.now();
+    var created = 0;
+    final rules = await getRecurringRules();
+    for (final rule in rules) {
+      if (!rule.active) continue;
+      final due = dueOccurrences(
+        rule.nextRun,
+        rule.frequency,
+        startDate: rule.startDate,
+        today: today,
+      );
+      if (due.isEmpty) continue;
+      await db.transaction((txn) async {
+        for (final d in due) {
+          await txn.insert(
+            'cash_transactions',
+            CashEntry(
+              accountId: rule.accountId,
+              date: DateTime(d.year, d.month, d.day, 9),
+              cashIn: rule.isIncome ? rule.amount : 0,
+              cashOut: rule.isIncome ? 0 : rule.amount,
+              notes: rule.notes,
+              category: rule.category,
+            ).toMap()..remove('id'),
+          );
+          created++;
+        }
+        final next = advanceDate(due.last, rule.frequency, anchorDay: rule.startDate.day);
+        await txn.update(
+          'recurring_rules',
+          {'next_run': next.toIso8601String()},
+          where: 'id = ?',
+          whereArgs: [rule.id],
+        );
+      });
+    }
+    return created;
+  }
+
+  // ---------- Budgets ----------
+  Future<List<Budget>> getBudgets() async {
+    final db = await _db;
+    final rows = await db.query('budgets', orderBy: 'category ASC');
+    return rows.map(Budget.fromMap).toList();
+  }
+
+  Future<void> upsertBudget(Budget b) async {
+    final db = await _db;
+    await db.insert(
+      'budgets',
+      b.toMap()..remove('id'),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteBudget(int id) async {
+    final db = await _db;
+    await db.delete('budgets', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// Expense totals per category within [from, to).
+  Future<Map<String, double>> expenseByCategory(DateTime from, DateTime to) async {
+    final entries = await getAllEntries(from: from, to: to, includeTransfers: false);
+    return totalsByCategory(entries, income: false);
+  }
+
+  // ---------- Savings goals ----------
+  Future<List<SavingsGoal>> getGoals() async {
+    final db = await _db;
+    final rows = await db.query('savings_goals', orderBy: 'id ASC');
+    return rows.map(SavingsGoal.fromMap).toList();
+  }
+
+  Future<int> insertGoal(SavingsGoal g) async {
+    final db = await _db;
+    return db.insert('savings_goals', g.toMap()..remove('id'));
+  }
+
+  Future<void> updateGoal(SavingsGoal g) async {
+    final db = await _db;
+    await db.update('savings_goals', g.toMap(), where: 'id = ?', whereArgs: [g.id]);
+  }
+
+  Future<void> deleteGoal(int id) async {
+    final db = await _db;
+    await db.delete('savings_goals', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ---------- Debts ----------
+  Future<List<Debt>> getDebts() async {
+    final db = await _db;
+    final rows = await db.query('debts', orderBy: 'settled ASC, created_date DESC');
+    return rows.map(Debt.fromMap).toList();
+  }
+
+  Future<int> insertDebt(Debt d) async {
+    final db = await _db;
+    return db.insert('debts', d.toMap()..remove('id'));
+  }
+
+  Future<void> updateDebt(Debt d) async {
+    final db = await _db;
+    await db.update('debts', d.toMap(), where: 'id = ?', whereArgs: [d.id]);
+  }
+
+  Future<void> deleteDebt(int id) async {
+    final db = await _db;
+    await db.delete('debt_payments', where: 'debt_id = ?', whereArgs: [id]);
+    await db.delete('debts', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<List<DebtPayment>> getDebtPayments(int debtId) async {
+    final db = await _db;
+    final rows = await db.query(
+      'debt_payments',
+      where: 'debt_id = ?',
+      whereArgs: [debtId],
+      orderBy: 'date DESC, id DESC',
+    );
+    return rows.map(DebtPayment.fromMap).toList();
+  }
+
+  Future<Map<int, double>> debtPaidTotals() async {
+    final db = await _db;
+    final rows = await db.rawQuery(
+      'SELECT debt_id, COALESCE(SUM(amount),0) AS paid FROM debt_payments GROUP BY debt_id',
+    );
+    return {
+      for (final r in rows) (r['debt_id'] as int): (r['paid'] as num).toDouble(),
+    };
+  }
+
+  Future<int> insertDebtPayment(DebtPayment p) async {
+    final db = await _db;
+    return db.insert('debt_payments', p.toMap()..remove('id'));
+  }
+
+  Future<void> deleteDebtPayment(int id) async {
+    final db = await _db;
+    await db.delete('debt_payments', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ---------- Entry templates ----------
+  Future<List<EntryTemplate>> getTemplates() async {
+    final db = await _db;
+    final rows = await db.query('entry_templates', orderBy: 'name ASC');
+    return rows.map(EntryTemplate.fromMap).toList();
+  }
+
+  Future<int> insertTemplate(EntryTemplate t) async {
+    final db = await _db;
+    return db.insert('entry_templates', t.toMap()..remove('id'));
+  }
+
+  Future<void> deleteTemplate(int id) async {
+    final db = await _db;
+    await db.delete('entry_templates', where: 'id = ?', whereArgs: [id]);
+  }
+
   // ---------- Settings ----------
   Future<String?> getSetting(String key) async {
     final db = await _db;

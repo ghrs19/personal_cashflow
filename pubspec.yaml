@@ -1,7 +1,7 @@
 name: personal_cashflow
 description: "Personal Cashflow - a clean, private cash book. Track cash in/out across multiple books, with encrypted backups and no ads."
 publish_to: "none"
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.5.0
@@ -24,6 +24,10 @@ dependencies:
   encrypt: ^5.0.3
   crypto: ^3.0.3
   google_fonts: ^6.2.1
+  excel: ^4.0.6
+  flutter_local_notifications: ^22.3.2
+  timezone: ^0.11.2
+  home_widget: ^0.10.0
 
 dev_dependencies:
   flutter_test:

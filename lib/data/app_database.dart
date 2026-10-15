@@ -23,7 +23,10 @@ class AppDatabase {
     final path = await dbPath();
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) await _createV2Tables(db);
+      },
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE accounts(
@@ -80,9 +83,72 @@ class AppDatabase {
             key TEXT PRIMARY KEY,
             value TEXT
           )''');
+        await _createV2Tables(db);
         await _seed(db);
       },
     );
+  }
+
+  /// Tables added in schema v2 (v1.2.0): recurring rules, budgets,
+  /// savings goals, debts + payments, entry templates.
+  static Future<void> _createV2Tables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recurring_rules(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        is_income INTEGER NOT NULL DEFAULT 0,
+        amount REAL NOT NULL DEFAULT 0,
+        category TEXT,
+        notes TEXT,
+        frequency TEXT NOT NULL DEFAULT 'monthly',
+        start_date TEXT NOT NULL,
+        next_run TEXT NOT NULL,
+        active INTEGER NOT NULL DEFAULT 1
+      )''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS budgets(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category TEXT NOT NULL UNIQUE,
+        limit_amount REAL NOT NULL DEFAULT 0
+      )''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS savings_goals(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        icon TEXT,
+        target_amount REAL NOT NULL DEFAULT 0,
+        current_amount REAL NOT NULL DEFAULT 0,
+        deadline TEXT
+      )''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS debts(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        person TEXT NOT NULL,
+        is_receivable INTEGER NOT NULL DEFAULT 1,
+        amount REAL NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_date TEXT NOT NULL,
+        due_date TEXT,
+        settled INTEGER NOT NULL DEFAULT 0
+      )''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS debt_payments(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        debt_id INTEGER NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        date TEXT NOT NULL,
+        note TEXT
+      )''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS entry_templates(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        account_id INTEGER NOT NULL,
+        is_income INTEGER NOT NULL DEFAULT 0,
+        amount REAL NOT NULL DEFAULT 0,
+        category TEXT,
+        notes TEXT
+      )''');
   }
 
   static Future<void> _seed(Database db) async {

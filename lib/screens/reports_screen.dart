@@ -3,11 +3,13 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/models.dart';
+import '../services/export_service.dart';
 import '../services/pdf_service.dart';
 import '../state/app_state.dart';
 import '../utils/calc.dart';
 import '../utils/format.dart';
 import '../widgets/bar_chart.dart';
+import '../widgets/trend_chart.dart';
 
 enum _Period { week, month, year }
 
@@ -21,6 +23,7 @@ class ReportsScreen extends StatefulWidget {
 class _ReportsScreenState extends State<ReportsScreen> {
   _Period _period = _Period.month;
   List<CashEntry> _entries = [];
+  List<CashEntry> _trendEntries = [];
   bool _loading = true;
   late DateTime _from;
   late DateTime _to;
@@ -51,9 +54,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _load() async {
     final state = context.read<AppState>();
     final entries = await state.repo.getAllEntries(from: _from, to: _to);
+    final now = DateTime.now();
+    final trendFrom = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
+    final trend = await state.repo.getAllEntries(
+      from: trendFrom,
+      to: trendFrom.add(const Duration(days: 30)),
+      includeTransfers: false,
+    );
     if (!mounted) return;
     setState(() {
       _entries = entries;
+      _trendEntries = trend;
       _loading = false;
     });
   }
@@ -109,10 +120,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
       appBar: AppBar(
         title: Text(s.t('reports')),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf_outlined),
-            tooltip: s.t('exportPdf'),
-            onPressed: _entries.isEmpty ? null : () => _exportPdf(state, accountNames),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.ios_share_outlined),
+            enabled: _entries.isNotEmpty,
+            onSelected: (v) {
+              if (v == 'pdf') _exportPdf(state, accountNames);
+              if (v == 'csv') _exportTabular(state, accountNames, excel: false);
+              if (v == 'excel') _exportTabular(state, accountNames, excel: true);
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'pdf', child: Text(s.t('exportPdf'))),
+              PopupMenuItem(value: 'csv', child: Text(s.t('exportCsv'))),
+              PopupMenuItem(value: 'excel', child: Text(s.t('exportExcel'))),
+            ],
           ),
         ],
       ),
@@ -141,6 +161,31 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     _totalStat(context, s.t('net'), totalIn - totalOut),
                   ],
                 ),
+                const SizedBox(height: 24),
+                _sectionTitle(context, s.t('balanceTrend')),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: BalanceTrendChart(series: _trendSeries()),
+                  ),
+                ),
+                if (_period == _Period.month) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Text(
+                        s.t('projection'),
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      const Spacer(),
+                      Text(
+                        fmtMoney(_projection(state),
+                            lang: state.lang, currencyCode: state.currencyCode),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15.5),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 20),
                 _sectionTitle(context, s.t('dailyFlow')),
                 Card(
@@ -350,5 +395,58 @@ class _ReportsScreenState extends State<ReportsScreen> {
       totalLabel: s.t('net'),
     );
     await Share.shareXFiles([XFile(file.path)]);
+  }
+
+  Future<void> _exportTabular(
+    AppState state,
+    Map<int, String> accountNames, {
+    required bool excel,
+  }) async {
+    try {
+      final file = excel
+          ? await ExportService.exportExcel(_entries, accountNames)
+          : await ExportService.exportCsv(_entries, accountNames);
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(state.s.t('operationFailed'))),
+        );
+      }
+    }
+  }
+
+  List<double> _trendSeries() {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 29));
+    final days = List.generate(30, (i) => start.add(Duration(days: i)));
+    return cumulativeSeries(totalsByDay(_trendEntries), days);
+  }
+
+  double _projection(AppState state) {
+    final now = DateTime.now();
+    final daysInMonth = DateTime(now.year, now.month + 1, 0).day;
+    final today = DateTime(now.year, now.month, now.day);
+    final monthEnd = DateTime(now.year, now.month + 1, 1);
+    var scheduled = 0.0;
+    for (final r in state.recurringRules) {
+      if (!r.active) continue;
+      var cursor = DateTime(r.nextRun.year, r.nextRun.month, r.nextRun.day);
+      var guard = 0;
+      while (cursor.isBefore(monthEnd) && guard++ < 40) {
+        if (cursor.isAfter(today)) {
+          scheduled += r.isIncome ? r.amount : -r.amount;
+        }
+        cursor = advanceDate(cursor, r.frequency, anchorDay: r.startDate.day);
+      }
+    }
+    final monthNet = netOf(state.monthEntries.where((e) => !e.isTransfer));
+    return projectMonthEnd(
+      currentBalance: state.total,
+      monthNetSoFar: monthNet,
+      elapsedDays: now.day,
+      remainingDays: daysInMonth - now.day,
+      scheduledNetRemaining: scheduled,
+    );
   }
 }

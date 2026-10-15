@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'screens/lock_screen.dart';
 import 'screens/root_shell.dart';
+import 'services/notification_service.dart';
 import 'state/app_state.dart';
 import 'theme/app_theme.dart';
 
@@ -11,6 +12,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID');
   await initializeDateFormatting('en_US');
+  try {
+    await NotificationService.init();
+  } catch (_) {
+    // Notifications are optional; never block startup on them.
+  }
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppState()..init(),

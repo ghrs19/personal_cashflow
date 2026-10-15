@@ -260,3 +260,274 @@ class EntryWithBalance {
   final double balanceAfter;
   const EntryWithBalance(this.entry, this.balanceAfter);
 }
+
+/// A recurring transaction rule (salary, subscription, installment…).
+/// [frequency] is 'weekly' | 'monthly' | 'yearly'. [nextRun] is the next
+/// date (day precision) on which an entry should be generated.
+class RecurringRule {
+  final int? id;
+  final int accountId;
+  final bool isIncome;
+  final double amount;
+  final String category;
+  final String notes;
+  final String frequency;
+  final DateTime startDate;
+  final DateTime nextRun;
+  final bool active;
+
+  const RecurringRule({
+    this.id,
+    required this.accountId,
+    required this.isIncome,
+    required this.amount,
+    this.category = '',
+    this.notes = '',
+    this.frequency = 'monthly',
+    required this.startDate,
+    required this.nextRun,
+    this.active = true,
+  });
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'account_id': accountId,
+        'is_income': isIncome ? 1 : 0,
+        'amount': amount,
+        'category': category,
+        'notes': notes,
+        'frequency': frequency,
+        'start_date': startDate.toIso8601String(),
+        'next_run': nextRun.toIso8601String(),
+        'active': active ? 1 : 0,
+      };
+
+  factory RecurringRule.fromMap(Map<String, Object?> m) => RecurringRule(
+        id: m['id'] as int?,
+        accountId: m['account_id'] as int,
+        isIncome: (m['is_income'] as int? ?? 0) == 1,
+        amount: (m['amount'] as num).toDouble(),
+        category: (m['category'] as String?) ?? '',
+        notes: (m['notes'] as String?) ?? '',
+        frequency: (m['frequency'] as String?) ?? 'monthly',
+        startDate: DateTime.parse(m['start_date'] as String),
+        nextRun: DateTime.parse(m['next_run'] as String),
+        active: (m['active'] as int? ?? 1) == 1,
+      );
+
+  RecurringRule copyWith({DateTime? nextRun, bool? active}) => RecurringRule(
+        id: id,
+        accountId: accountId,
+        isIncome: isIncome,
+        amount: amount,
+        category: category,
+        notes: notes,
+        frequency: frequency,
+        startDate: startDate,
+        nextRun: nextRun ?? this.nextRun,
+        active: active ?? this.active,
+      );
+}
+
+/// A monthly spending limit for one expense category.
+class Budget {
+  final int? id;
+  final String category;
+  final double limitAmount;
+
+  const Budget({this.id, required this.category, required this.limitAmount});
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'category': category,
+        'limit_amount': limitAmount,
+      };
+
+  factory Budget.fromMap(Map<String, Object?> m) => Budget(
+        id: m['id'] as int?,
+        category: m['category'] as String,
+        limitAmount: (m['limit_amount'] as num).toDouble(),
+      );
+}
+
+/// A savings goal with manually tracked contributions.
+class SavingsGoal {
+  final int? id;
+  final String name;
+  final String icon;
+  final double targetAmount;
+  final double currentAmount;
+  final DateTime? deadline;
+
+  const SavingsGoal({
+    this.id,
+    required this.name,
+    this.icon = '🎯',
+    required this.targetAmount,
+    this.currentAmount = 0,
+    this.deadline,
+  });
+
+  double get progress =>
+      targetAmount <= 0 ? 0 : (currentAmount / targetAmount).clamp(0.0, 1.0);
+  bool get reached => currentAmount >= targetAmount && targetAmount > 0;
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'name': name,
+        'icon': icon,
+        'target_amount': targetAmount,
+        'current_amount': currentAmount,
+        'deadline': deadline?.toIso8601String(),
+      };
+
+  factory SavingsGoal.fromMap(Map<String, Object?> m) => SavingsGoal(
+        id: m['id'] as int?,
+        name: m['name'] as String,
+        icon: (m['icon'] as String?) ?? '🎯',
+        targetAmount: (m['target_amount'] as num).toDouble(),
+        currentAmount: (m['current_amount'] as num?)?.toDouble() ?? 0,
+        deadline:
+            m['deadline'] == null ? null : DateTime.parse(m['deadline'] as String),
+      );
+
+  SavingsGoal copyWith({double? currentAmount, String? name, String? icon, double? targetAmount, DateTime? deadline}) =>
+      SavingsGoal(
+        id: id,
+        name: name ?? this.name,
+        icon: icon ?? this.icon,
+        targetAmount: targetAmount ?? this.targetAmount,
+        currentAmount: currentAmount ?? this.currentAmount,
+        deadline: deadline ?? this.deadline,
+      );
+}
+
+/// Money lent or borrowed. [isReceivable] = someone owes the user;
+/// otherwise the user owes someone. Remaining = amount − payments.
+class Debt {
+  final int? id;
+  final String person;
+  final bool isReceivable;
+  final double amount;
+  final String notes;
+  final DateTime createdDate;
+  final DateTime? dueDate;
+  final bool settled;
+
+  const Debt({
+    this.id,
+    required this.person,
+    required this.isReceivable,
+    required this.amount,
+    this.notes = '',
+    required this.createdDate,
+    this.dueDate,
+    this.settled = false,
+  });
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'person': person,
+        'is_receivable': isReceivable ? 1 : 0,
+        'amount': amount,
+        'notes': notes,
+        'created_date': createdDate.toIso8601String(),
+        'due_date': dueDate?.toIso8601String(),
+        'settled': settled ? 1 : 0,
+      };
+
+  factory Debt.fromMap(Map<String, Object?> m) => Debt(
+        id: m['id'] as int?,
+        person: m['person'] as String,
+        isReceivable: (m['is_receivable'] as int? ?? 1) == 1,
+        amount: (m['amount'] as num).toDouble(),
+        notes: (m['notes'] as String?) ?? '',
+        createdDate: DateTime.parse(m['created_date'] as String),
+        dueDate: m['due_date'] == null ? null : DateTime.parse(m['due_date'] as String),
+        settled: (m['settled'] as int? ?? 0) == 1,
+      );
+
+  Debt copyWith({bool? settled}) => Debt(
+        id: id,
+        person: person,
+        isReceivable: isReceivable,
+        amount: amount,
+        notes: notes,
+        createdDate: createdDate,
+        dueDate: dueDate,
+        settled: settled ?? this.settled,
+      );
+}
+
+class DebtPayment {
+  final int? id;
+  final int debtId;
+  final double amount;
+  final DateTime date;
+  final String note;
+
+  const DebtPayment({
+    this.id,
+    required this.debtId,
+    required this.amount,
+    required this.date,
+    this.note = '',
+  });
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'debt_id': debtId,
+        'amount': amount,
+        'date': date.toIso8601String(),
+        'note': note,
+      };
+
+  factory DebtPayment.fromMap(Map<String, Object?> m) => DebtPayment(
+        id: m['id'] as int?,
+        debtId: m['debt_id'] as int,
+        amount: (m['amount'] as num).toDouble(),
+        date: DateTime.parse(m['date'] as String),
+        note: (m['note'] as String?) ?? '',
+      );
+}
+
+/// A reusable transaction template (one-tap prefill in the editor).
+class EntryTemplate {
+  final int? id;
+  final String name;
+  final int accountId;
+  final bool isIncome;
+  final double amount;
+  final String category;
+  final String notes;
+
+  const EntryTemplate({
+    this.id,
+    required this.name,
+    required this.accountId,
+    required this.isIncome,
+    required this.amount,
+    this.category = '',
+    this.notes = '',
+  });
+
+  Map<String, Object?> toMap() => {
+        'id': id,
+        'name': name,
+        'account_id': accountId,
+        'is_income': isIncome ? 1 : 0,
+        'amount': amount,
+        'category': category,
+        'notes': notes,
+      };
+
+  factory EntryTemplate.fromMap(Map<String, Object?> m) => EntryTemplate(
+        id: m['id'] as int?,
+        name: m['name'] as String,
+        accountId: m['account_id'] as int,
+        isIncome: (m['is_income'] as int? ?? 0) == 1,
+        amount: (m['amount'] as num?)?.toDouble() ?? 0,
+        category: (m['category'] as String?) ?? '',
+        notes: (m['notes'] as String?) ?? '',
+      );
+}

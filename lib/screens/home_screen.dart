@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import '../utils/calc.dart';
 import '../utils/format.dart';
 import 'book_screen.dart';
+import 'budgets_screen.dart';
 import 'entry_editor_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -86,6 +87,33 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 26),
+          if (state.budgetAlerts.isNotEmpty) ...[
+            InkWell(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BudgetsScreen()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_outlined,
+                        size: 17, color: Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${s.t('budgetAlmost')}: '
+                        '${state.budgetAlerts.map((b) => '${b.category} ${(budgetFraction(state.budgetSpent[b.category] ?? 0, b.limitAmount) * 100).toStringAsFixed(0)}%').join(' • ')}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, size: 17),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+          ],
           Row(
             children: [
               Text(
