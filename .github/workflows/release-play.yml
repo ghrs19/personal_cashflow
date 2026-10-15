@@ -38,6 +38,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Restores/saves the Gradle dependency + build cache between
+      # runs, keyed on the project's Gradle files — without it every
+      # publish build starts Gradle cold. (Flutter SDK + Pub are
+      # already cached via flutter-action's cache: true below.)
+      - name: Set up Gradle (cached)
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:

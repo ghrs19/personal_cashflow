@@ -28,6 +28,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      # Without this, every run re-downloads the Gradle distribution,
+      # AGP and every Maven artifact into a cold Gradle user home and
+      # recompiles everything. This restores/saves the Gradle
+      # dependency + build cache between runs, keyed on the project's
+      # Gradle files. (Flutter SDK + Pub are already cached via
+      # flutter-action's cache: true below.)
+      - name: Set up Gradle (cached)
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
