@@ -12,6 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Hosted runners ship ~14 GB free; the Android SDK/NDK + Gradle
+      # caches + Flutter artifacts can exhaust that mid-build (run #6
+      # died with "No space left on device"). Drop large preinstalled
+      # toolchains this job never uses.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost /usr/local/lib/android/sdk/.temp || true
+          df -h / | tail -1
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
