@@ -1,8 +1,7 @@
 name: personal_cashflow
 description: "Personal Cashflow - a clean, private cash book. Track cash in/out across multiple books, with encrypted backups and no ads."
 publish_to: "none"
-version: 1.3.1+5
-
+version: 1.3.2+6
 environment:
   sdk: ^3.5.0
 
